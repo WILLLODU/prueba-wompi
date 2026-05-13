@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Prueba Wompi</title>
+</head>
+<body>
+
+<button id="btnPagar">Pagar Póliza</button>
+
+<script>
+
+// ══════════════════════════════════════════════
+// DATOS QUEMADOS
+// ══════════════════════════════════════════════
+var PUBLIC_KEY    = "pub_prod_ZoIGbL2sKR0F5iOYhA8978778";
+var INTEGRITY_KEY = "prod_integrity_GKWnljU2i4Kn154465446";
+var CURRENCY      = "COP";
+var AMOUNT_CENTS  = 2344400;                   // $23.444 COP
+
+// Referencia única: TipoPoliza + NumPoliza + timestamp para evitar duplicados
+var TIPO_POLIZA   = "SOAT";
+var NUM_POLIZA    = "2022020";
+var REFERENCE     = TIPO_POLIZA + NUM_POLIZA + Date.now();
+
+// Datos comprador
+var FULL_NAME     = "Carlos Ramirez";
+var EMAIL         = "carlos.ramirez@correo.com";   // ← CORREO AGREGADO
+var PHONE         = "3001234567";
+var PHONE_PREFIX  = "+57";
+var LEGAL_ID      = "123456789";
+var LEGAL_ID_TYPE = "CC";
+
+// ══════════════════════════════════════════════
+// FIRMA SHA-256
+// Orden exacto: reference + amountCents + currency + integrityKey
+// ══════════════════════════════════════════════
+async function sha256(str) {
+  var buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf))
+              .map(function(b){ return b.toString(16).padStart(2,"0"); })
+              .join("");
+}
+
+// ══════════════════════════════════════════════
+// LANZAR WOMPI
+// ══════════════════════════════════════════════
+document.getElementById("btnPagar").addEventListener("click", async function() {
+
+  var cadena = REFERENCE + AMOUNT_CENTS + CURRENCY + INTEGRITY_KEY;
+  var firma  = await sha256(cadena);
+
+  // Limpiar widget previo
+  var anterior = document.getElementById("wompi-wrap");
+  if (anterior) anterior.remove();
+
+  var wrap = document.createElement("div");
+  wrap.id = "wompi-wrap";
+  document.body.appendChild(wrap);
+
+  var script = document.createElement("script");
+  script.src = "https://checkout.wompi.co/widget.js";
+
+  // ── Obligatorios ──────────────────────────────
+  script.setAttribute("data-public-key",          PUBLIC_KEY);
+  script.setAttribute("data-currency",            CURRENCY);
+  script.setAttribute("data-amount-in-cents",     String(AMOUNT_CENTS));
+  script.setAttribute("data-reference",           REFERENCE);
+  script.setAttribute("data-signature:integrity", firma);
+  script.setAttribute("data-redirect-url",        window.location.href);
+
+  // ── Datos del comprador ────────────────────────
+  script.setAttribute("data-customer-data:full-name",           FULL_NAME);
+  script.setAttribute("data-customer-data:email",               EMAIL);        // ← CORREO
+  script.setAttribute("data-customer-data:phone-number",        PHONE);
+  script.setAttribute("data-customer-data:phone-number-prefix", PHONE_PREFIX);
+  script.setAttribute("data-customer-data:legal-id",            LEGAL_ID);
+  script.setAttribute("data-customer-data:legal-id-type",       LEGAL_ID_TYPE);
+
+  // ── Referencias de póliza ──────────────────────
+  // Wompi las recibe como shipping-address o como campos extra según el comercio
+  // La referencia principal ya lleva TipoPoliza+NumPoliza
+  // Adicionalmente se envían como parámetros de referencia
+  script.setAttribute("data-shipping-address:address-line-1",   "Tipo Poliza: " + TIPO_POLIZA);
+  script.setAttribute("data-shipping-address:address-line-2",   "Numero Poliza: " + NUM_POLIZA);
+  script.setAttribute("data-shipping-address:country",          "CO");
+
+  script.setAttribute("data-render", "button");
+  wrap.appendChild(script);
+
+  // Auto-click
+  setTimeout(function() {
+    var btnWompi = wrap.querySelector("button");
+    if (btnWompi) btnWompi.click();
+  }, 900);
+
+});
+</script>
+</body>
+</html>
